@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -13,23 +14,44 @@ const (
 )
 
 type EventPublisher struct {
-	ch *amqp.Channel
+	ch   *amqp.Channel
+	repo Repository
 }
 
-func NewEventPublisher(conn *amqp.Connection) (*EventPublisher, error) {
+func NewEventPublisher(conn *amqp.Connection, repo Repository) (*EventPublisher, error) {
 	ch, err := conn.Channel()
 	if err != nil {
 		return nil, err
 	}
 
 	return &EventPublisher{
-		ch: ch,
+		ch:   ch,
+		repo: repo,
 	}, nil
 }
 
 func (e *EventPublisher) Close() error {
 	return e.ch.
 		Close()
+}
+
+func (e *EventPublisher) Produce(queueType string, payload []byte) error {
+	ch := e.ch
+	queue, err := getQueue(queueType, ch)
+	if err != nil {
+		return err
+	}
+
+	return ch.Publish(
+		"",
+		queue.Name,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        payload,
+		},
+	)
 }
 
 func (e *EventPublisher) Consume(queueType string) {
@@ -54,7 +76,7 @@ func (e *EventPublisher) Consume(queueType string) {
 	forever := make(chan interface{})
 	for m := range msg {
 		go func() {
-			e.handleMessage(queue.Name, m)
+			e.handleMessage(queueType, m)
 		}()
 	}
 	<-forever
@@ -64,16 +86,24 @@ func (e *EventPublisher) handleMessage(queueName string, d amqp.Delivery) {
 	switch queueName {
 	case GATEWAY_EVENT_CREATE:
 		{
-			log.Println("sent data for creation", string(d.Body))
+			resp := &CreateModel{}
+			err := json.Unmarshal(d.Body, resp)
+			if err != nil {
+				log.Panic(err)
+			}
+			e.repo.MockCreateData(resp)
+			go e.Produce(NOTIFICATION_CREATE, []byte("data stored in database"))
 		}
 
 	case GATEWAY_EVENT_GET:
 		{
-			log.Println("request for getting data", string(d.Body))
-		}
-	case NOTIFICATION_CREATE:
-		{
-			log.Println("new notification", string(d.Body))
+			resp := &GetModel{}
+			err := json.Unmarshal(d.Body, resp)
+			if err != nil {
+				log.Panic(err)
+			}
+			e.repo.MockGetData(resp)
+			go e.Produce(NOTIFICATION_CREATE, []byte("got data from database"))
 		}
 	}
 }

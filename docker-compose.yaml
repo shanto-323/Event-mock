@@ -21,6 +21,15 @@ services:
     ports:
       - 8080:8080
     restart: on-failure
+  database-mock:
+    build:
+      context: .
+      dockerfile: ./notification/app.dockerfile
+    depends_on:
+      - rabbitmq
+    environment:
+      - RABBITMQ_URL=amqp://shanto:123456@rabbitmq:5672/
+    restart: on-failure
   notification:
     build:
       context: .

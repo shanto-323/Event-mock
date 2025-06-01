@@ -32,13 +32,14 @@ func main() {
 		},
 	)
 	defer conn.Close()
-	event, err := NewEventPublisher(conn)
+	repo := NewDbRepository()
+
+	event, err := NewEventPublisher(conn, repo)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	go event.Consume(GATEWAY_EVENT_GET)
 	go event.Consume(GATEWAY_EVENT_CREATE)
-	go event.Consume(NOTIFICATION_CREATE)
 	select {}
 }

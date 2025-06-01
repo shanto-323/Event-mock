@@ -55,7 +55,9 @@ func getQueue(queueType string, ch *amqp.Channel) (amqp.Queue, error) {
 		false,
 		false,
 		false,
-		nil,
+		amqp.Table{
+			"x-delivery-limit": 2, // Max 2 attempts (RabbitMQ 3.8+)
+		},
 	)
 	return queue, err
 }
