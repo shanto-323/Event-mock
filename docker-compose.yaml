@@ -1,0 +1,32 @@
+services:
+
+  rabbitmq:
+    image: rabbitmq:3.13.7-management-alpine
+    container_name: new-event-broker2
+    environment:
+      - RABBITMQ_DEFAULT_USER=shanto
+      - RABBITMQ_DEFAULT_PASS=123456
+    ports:
+      - 5672:5672
+      - 15672:15672
+    restart: on-failure
+  gateway:
+    build:
+      context: .
+      dockerfile: ./gateway/app.dockerfile
+    depends_on:
+      - rabbitmq
+    environment:
+      - RABBITMQ_URL=amqp://shanto:123456@rabbitmq:5672/
+    ports:
+      - 8080:8080
+    restart: on-failure
+  notification:
+    build:
+      context: .
+      dockerfile: ./notification/app.dockerfile
+    depends_on:
+      - rabbitmq
+    environment:
+      - RABBITMQ_URL=amqp://shanto:123456@rabbitmq:5672/
+    restart: on-failure
